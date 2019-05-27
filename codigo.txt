@@ -1,0 +1,696 @@
+program main
+    implicit none
+!declaracion de variables
+    integer nx,ny,nz,i,j,k,itmax1,itmax2,max_iter,it
+    integer nx1,nx2,nx3,ny1,ny2,ny3,nz1,nz2
+    real*8 a1,a2,a3,Tr,Taf,Tac,Tai,x0,xl,y0,yl,z0,zl,dx,dy,dz,dv,dt,Se,Sw,Sn,Ss,Sb,Su,tolerance,residual,time1,time2
+    real*8 c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15,c16,c17,c18,c19,c20,c21,c22,haf,kk,hac,hai
+    real*8 Lx1,Lx2,Lx3,Ly1,Ly2,Ly3,Lz1,Lz2
+    real*8 xi1,xi2,yj1,yj2,zk1
+    integer, allocatable :: m_c(:,:,:)
+    !integer, allocatable :: pos(:,:,:)
+    real*8, allocatable :: aP(:,:,:),aE(:,:,:),aW(:,:,:),aN(:,:,:),aS(:,:,:),aB(:,:,:),aU(:,:,:),Sp(:,:,:),T(:,:,:)
+    real*8, allocatable :: x(:),xc(:),y(:),yc(:),z(:),zc(:) 
+!inicializacion de variables
+    a1= 3.52e-6; a2=8.0e-8; a3=1.34e-7; kk=0.55   
+    haf= 728.58; hac= 1989.2; Tr= 59.63; Taf= 25.68; Tac= 59.63 
+    nx1=36; nx2=18; nx3=36; nx=nx1+nx2+nx3
+    ny1=36; ny2=18; ny3=36; ny=ny1+ny2+ny3
+    nz1=54; nz2=36;         nz=nz1+nz2
+    Lx1=0.032; Lx2=0.016; Lx3=0.032; x0=0.0; xl=0.08; xi1=x0+Lx1; xi2=x0+Lx1+Lx2
+    Ly1=0.032; Ly2=0.016; Ly3=0.032; y0=0.0; yl=0.08; yj1=y0+Ly1; yj2=y0+Ly1+Ly2  
+    Lz1=0.048; Lz2=0.032; z0=0.0; zl=0.08; zk1=z0+Lz1 
+    dx=(xl-x0)/float(nx); dy=(yl-y0)/float(ny); dz=(zl-z0)/float(nz); dv=dx*dy*dz
+    Se=dy*dz; Sw=dy*dz; Sn=dx*dz; Ss=dx*dz; Sb=dx*dy; Su=dx*dy
+    max_iter=1000; tolerance=1e-6; time1=80; time2=100; dt=1.0; itmax1= int(time1/dt)+1; itmax2= int(time2/dt)+1
+!asignacion de memoria dinamica
+    allocate(aP(nx,ny,nz),aE(nx,ny,nz),aW(nx,ny,nz),aN(nx,ny,nz),aS(nx,ny,nz),aB(nx,ny,nz),aU(nx,ny,nz),sP(nx,ny,nz))
+    allocate(T(0:nx+1,0:ny+1,0:nz+1))
+    allocate(x(0:nx),y(0:ny),z(0:nz),xc(0:nx+1),yc(0:ny+1),zc(0:nz+1))
+    allocate(m_c(0:nx+1,0:ny+1,0:nz+1))
+!creacion de malla
+    call MESH_1D(nx,x0,xl,x,xc)
+    call MESH_1D(ny,y0,yl,y,yc)
+    call MESH_1D(nz,z0,zl,z,zc)
+!iniciar valores en cero
+    aP=0.0;aE=0.0;aW=0.0;aN=0.0;aS=0.0;aB=0.0;aU=0.0;Sp=0.0;T=Tr
+!desginar Tf,Tr,mc=1,mc=2
+    do i=1, nx
+    do j=1, ny
+    do k=1, nz
+    if((xc(i).gt.xi1.and.xc(i).lt.xi2).and.(yc(j).gt.yj1.and.yc(j).lt.yj2).and.(zc(k).gt.zk1.and.zc(k).lt.zl))then
+    T(i,j,k)=Taf; m_c(i,j,k)=1
+    else
+    T(i,j,k)=Tr; m_c(i,j,k)=0
+    endif
+    enddo
+    enddo
+    enddo
+!ciclo temporal
+    do it=1, itmax1
+!calculo de coeficientes
+    do i=1, nx
+    do j=1, ny
+    do k=1, nz
+    if(m_c(i,j,k).eq.0)then
+    aE(i,j,k)=a1*Se/dx
+    aW(i,j,k)=a1*Sw/dx
+    aN(i,j,k)=a1*Sn/dy
+    aS(i,j,k)=a1*Ss/dy
+    aU(i,j,k)=a1*Su/dz
+    aB(i,j,k)=a1*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    if(m_c(i,j,k).eq.1)then
+    aE(i,j,k)=0.0;aW(i,j,k)=0.0;aN(i,j,k)=0.0;aS(i,j,k)=0.0;aU(i,j,k)=0.0;aB(i,j,k)=0.0;T(i,j,k)=Taf
+    aP(i,j,k)=1.0
+    Sp(i,j,k)=T(i,j,k)
+    endif
+!correccion de frontera inmersa (ap sp y a)
+    !norte
+    if((m_c(i,j,k).eq.0).and.(m_c(i,j-1,k).eq.1))then
+    c11=(2.0*kk-haf*dy)/(2.0*kk+haf*dy)
+    c12=(2.0*haf*Taf*dy)/(2.0*kk+haf*dy)
+    aP(i,j,k)=aP(i,j,k)-aS(i,j,k)*c11
+    Sp(i,j,k)=Sp(i,j,k)+aS(i,j,k)*c12
+    aS(i,j,k)=0.0
+    endif
+    !sur
+    if((m_c(i,j,k).eq.0).and.(m_c(i,j+1,k).eq.1))then
+    c13=(2.0*kk-haf*dy)/(2.0*kk+haf*dy)
+    c14=(2.0*haf*Taf*dy)/(2.0*kk+haf*dy)
+    aP(i,j,k)=aP(i,j,k)-aN(i,j,k)*c13
+    Sp(i,j,k)=Sp(i,j,k)+aN(i,j,k)*c14
+    aN(i,j,k)=0.0
+    endif
+    !este
+    if((m_c(i,j,k).eq.0).and.(m_c(i-1,j,k).eq.1))then
+    c15=(2.0*kk-haf*dx)/(2.0*kk+haf*dx)
+    c16=(2.0*haf*Taf*dx)/(2.0*kk+haf*dx)
+    aP(i,j,k)=aP(i,j,k)-aW(i,j,k)*c15
+    Sp(i,j,k)=Sp(i,j,k)+aW(i,j,k)*c16
+    aW(i,j,k)=0.0
+    endif
+    !oeste
+    if((m_c(i,j,k).eq.0).and.(m_c(i+1,j,k).eq.1))then
+    c17=(2.0*kk-haf*dx)/(2.0*kk+haf*dx)
+    c18=(2.0*haf*Taf*dx)/(2.0*kk+haf*dx)
+    aP(i,j,k)=aP(i,j,k)-aE(i,j,k)*c17
+    Sp(i,j,k)=Sp(i,j,k)+aE(i,j,k)*c18
+    aE(i,j,k)=0.0
+    endif
+    !abajo
+    if((m_c(i,j,k).eq.0).and.(m_c(i,j,k+1).eq.1))then
+    c19=(2.0*kk-haf*dx)/(2.0*kk+haf*dx)
+    c20=(2.0*haf*Taf*dx)/(2.0*kk+haf*dx)
+    aP(i,j,k)=aP(i,j,k)-aU(i,j,k)*c19
+    Sp(i,j,k)=Sp(i,j,k)+aU(i,j,k)*c20
+    aU(i,j,k)=0.0
+    endif
+    enddo
+    enddo
+    enddo
+!correciones para vols de ctrol en frontera
+!tipo robin
+    !norte
+    c1=(2.0*kk-hac*dy)/(2.0*kk+hac*dy)
+    c2=(2.0*hac*Tac*dy)/(2.0*kk+hac*dy)
+    aP(1:nx,ny,1:nz)=aP(1:nx,ny,1:nz)-aN(1:nx,ny,1:nz)*c1
+    Sp(1:nx,ny,1:nz)=Sp(1:nx,ny,1:nz)+aN(1:nx,ny,1:nz)*c2
+    aN(1:nx,ny,1:nz)=0.0
+    !sur
+    c3=(2.0*kk-hac*dy)/(2.0*kk+hac*dy)
+    c4=(2.0*hac*Tac*dy)/(2.0*kk+hac*dy)
+    aP(1:nx,1,1:nz)=aP(1:nx,1,1:nz)-aS(1:nx,1,1:nz)*c3
+    Sp(1:nx,1,1:nz)=Sp(1:nx,1,1:nz)+aS(1:nx,1,1:nz)*c4
+    aS(1:nx,1,1:nz)=0.0
+    !este
+    c5=(2.0*kk-hac*dx)/(2.0*kk+hac*dx)
+    c6=(2.0*hac*Tac*dx)/(2.0*kk+hac*dx)
+    aP(nx,1:ny,1:nz)=aP(nx,1:ny,1:nz)-aE(nx,1:ny,1:nz)*c5
+    Sp(nx,1:ny,1:nz)=Sp(nx,1:ny,1:nz)+aE(nx,1:ny,1:nz)*c6
+    aE(nx,1:ny,1:nz)=0.0
+    !oeste
+    c7=(2.0*kk-hac*dx)/(2.0*kk+hac*dx)
+    c8=(2.0*hac*Tac*dx)/(2.0*kk+hac*dx)
+    aP(1,1:ny,1:nz)=aP(1,1:ny,1:nz)-aW(1,1:ny,1:nz)*c7
+    Sp(1,1:ny,1:nz)=Sp(1,1:ny,1:nz)+aW(1,1:ny,1:nz)*c8
+    aW(1,1:ny,1:nz)=0.0
+    !abajo
+    c9=(2.0*kk-hac*dz)/(2.0*kk+hac*dz)
+    c10=(2.0*hac*Tac*dz)/(2.0*kk+hac*dz)
+    aP(1:nx,1:ny,1)=aP(1:nx,1:ny,1)-aB(1:nx,1:ny,1)*c9
+    Sp(1:nx,1:ny,1)=Sp(1:nx,1:ny,1)+aB(1:nx,1:ny,1)*c10
+    aB(1:nx,1:ny,1)=0.0
+    !arriba
+    c21=(2.0*kk-hac*dz)/(2.0*kk+hac*dz)
+    c22=(2.0*hac*Tac*dz)/(2.0*kk+hac*dz)
+    aP(1:nx,1:ny,1)=aP(1:nx,1:ny,1)-aU(1:nx,1:ny,1)*c21
+    Sp(1:nx,1:ny,1)=Sp(1:nx,1:ny,1)+aU(1:nx,1:ny,1)*c22
+    aU(1:nx,1:ny,1)=0.0	
+!solucion de sistema de ecuaciones lineales
+    call Gauss_TDMA3D(T,nx,ny,nz,aP,aE,aW,aN,aS,aU,aB,sP,nx,ny,nz,max_iter,tolerance,residual)
+!impresion de resultados en la pantalla
+    if ((it.eq.1).or.(mod(it,5).eq.0))then
+    write(*,*)it,T(45,45,48),T(45,45,39),T(45,45,24)!axial
+    endif
+!termina ciclo tempral
+    enddo
+!reiniciar valores en cero
+    aP=0.0;aE=0.0;aW=0.0;aN=0.0;aS=0.0;aB=0.0;aU=0.0;Sp=0.0
+!ciclo temporal afuera
+    do it=1, itmax2
+!coeficientes
+    do i=1, nx
+    do j=1, ny
+    do k=1, nz
+    if(m_c(i,j,k).eq.0)then
+    aE(i,j,k)=a1*Se/dx
+    aW(i,j,k)=a1*Sw/dx
+    aN(i,j,k)=a1*Sn/dy
+    aS(i,j,k)=a1*Ss/dy
+    aU(i,j,k)=a1*Su/dz
+    aB(i,j,k)=a1*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    if(m_c(i,j,k).eq.1)then
+    aE(i,j,k)=a2*Se/dx
+    aW(i,j,k)=a2*Sw/dx
+    aN(i,j,k)=a2*Sn/dy
+    aS(i,j,k)=a2*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a2*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !norte afuera
+    if((m_c(i,j,k).eq.0).and.(m_c(i,j-1,k).eq.1))then
+    aE(i,j,k)=a1*Se/dx
+    aW(i,j,k)=a1*Sw/dx
+    aN(i,j,k)=a1*Sn/dy
+    aS(i,j,k)=a3*Ss/dy
+    aU(i,j,k)=a1*Su/dz
+    aB(i,j,k)=a1*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !sur afuera
+    if((m_c(i,j,k).eq.0).and.(m_c(i,j+1,k).eq.1))then
+    aE(i,j,k)=a1*Se/dx
+    aW(i,j,k)=a1*Sw/dx
+    aN(i,j,k)=a3*Sn/dy
+    aS(i,j,k)=a1*Ss/dy
+    aU(i,j,k)=a1*Su/dz
+    aB(i,j,k)=a1*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !este afuera
+    if((m_c(i,j,k).eq.0).and.(m_c(i-1,j,k).eq.1))then
+    aE(i,j,k)=a1*Se/dx
+    aW(i,j,k)=a3*Sw/dx
+    aN(i,j,k)=a1*Sn/dy
+    aS(i,j,k)=a1*Ss/dy
+    aU(i,j,k)=a1*Su/dz
+    aB(i,j,k)=a1*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !oeste afuera
+    if((m_c(i,j,k).eq.0).and.(m_c(i+1,j,k).eq.1))then
+    aE(i,j,k)=a3*Se/dx
+    aW(i,j,k)=a1*Sw/dx
+    aN(i,j,k)=a1*Sn/dy
+    aS(i,j,k)=a1*Ss/dy
+    aU(i,j,k)=a1*Su/dz
+    aB(i,j,k)=a1*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !abajo afuera
+    if((m_c(i,j,k).eq.0).and.(m_c(i,j,k+1).eq.1))then
+    aE(i,j,k)=a1*Se/dx
+    aW(i,j,k)=a1*Sw/dx
+    aN(i,j,k)=a1*Sn/dy
+    aS(i,j,k)=a1*Ss/dy
+    aU(i,j,k)=a3*Su/dz
+    aB(i,j,k)=a1*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !norte adentro
+    if((m_c(i,j,k).eq.1).and.(m_c(i,j+1,k).eq.0))then
+    aE(i,j,k)=a2*Se/dx
+    aW(i,j,k)=a2*Sw/dx
+    aN(i,j,k)=a3*Sn/dy
+    aS(i,j,k)=a2*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a2*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !sur adentro
+    if((m_c(i,j,k).eq.1).and.(m_c(i,j-1,k).eq.0))then
+    aE(i,j,k)=a2*Se/dx
+    aW(i,j,k)=a2*Sw/dx
+    aN(i,j,k)=a2*Sn/dy
+    aS(i,j,k)=a3*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a2*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !este adentro
+    if((m_c(i,j,k).eq.1).and.(m_c(i+1,j,k).eq.0))then
+    aE(i,j,k)=a3*Se/dx
+    aW(i,j,k)=a2*Sw/dx
+    aN(i,j,k)=a2*Sn/dy
+    aS(i,j,k)=a2*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a2*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !oeste adentro
+    if((m_c(i,j,k).eq.1).and.(m_c(i-1,j,k).eq.0))then
+    aE(i,j,k)=a2*Se/dx
+    aW(i,j,k)=a3*Sw/dx
+    aN(i,j,k)=a2*Sn/dy
+    aS(i,j,k)=a2*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a2*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !abajo adentro
+    if((m_c(i,j,k).eq.1).and.(m_c(i,j,k-1).eq.0))then
+    aE(i,j,k)=a2*Se/dx
+    aW(i,j,k)=a2*Sw/dx
+    aN(i,j,k)=a2*Sn/dy
+    aS(i,j,k)=a2*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a3*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !poste1
+    if((m_c(i,j,k).eq.1).and.(m_c(i-1,j,k).eq.0).and.(m_c(i,j+1,k).eq.0))then
+    aE(i,j,k)=a2*Se/dx
+    aW(i,j,k)=a3*Sw/dx
+    aN(i,j,k)=a3*Sn/dy
+    aS(i,j,k)=a2*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a2*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !poste2
+    if((m_c(i,j,k).eq.1).and.(m_c(i+1,j,k).eq.0).and.(m_c(i,j+1,k).eq.0))then
+    aE(i,j,k)=a3*Se/dx
+    aW(i,j,k)=a2*Sw/dx
+    aN(i,j,k)=a3*Sn/dy
+    aS(i,j,k)=a2*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a2*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !poste3
+    if((m_c(i,j,k).eq.1).and.(m_c(i+1,j,k).eq.0).and.(m_c(i,j-1,k).eq.0))then
+    aE(i,j,k)=a3*Se/dx
+    aW(i,j,k)=a2*Sw/dx
+    aN(i,j,k)=a2*Sn/dy
+    aS(i,j,k)=a3*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a2*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !poste4
+    if((m_c(i,j,k).eq.1).and.(m_c(i-1,j,k).eq.0).and.(m_c(i,j-1,k).eq.0))then
+    aE(i,j,k)=a2*Se/dx
+    aW(i,j,k)=a3*Sw/dx
+    aN(i,j,k)=a2*Sn/dy
+    aS(i,j,k)=a3*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a2*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !poste5
+    if((m_c(i,j,k).eq.1).and.(m_c(i,j+1,k).eq.0).and.(m_c(i,j,k-1).eq.0))then
+    aE(i,j,k)=a2*Se/dx
+    aW(i,j,k)=a2*Sw/dx
+    aN(i,j,k)=a3*Sn/dy
+    aS(i,j,k)=a2*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a3*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !poste6
+    if((m_c(i,j,k).eq.1).and.(m_c(i+1,j,k).eq.0).and.(m_c(i,j,k-1).eq.0))then
+    aE(i,j,k)=a3*Se/dx
+    aW(i,j,k)=a2*Sw/dx
+    aN(i,j,k)=a2*Sn/dy
+    aS(i,j,k)=a2*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a3*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !poste7
+    if((m_c(i,j,k).eq.1).and.(m_c(i,j-1,k).eq.0).and.(m_c(i,j,k-1).eq.0))then
+    aE(i,j,k)=a2*Se/dx
+    aW(i,j,k)=a2*Sw/dx
+    aN(i,j,k)=a2*Sn/dy
+    aS(i,j,k)=a3*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a3*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !poste8
+    if((m_c(i,j,k).eq.1).and.(m_c(i-1,j,k).eq.0).and.(m_c(i,j,k-1).eq.0))then
+    aE(i,j,k)=a2*Se/dx
+    aW(i,j,k)=a3*Sw/dx
+    aN(i,j,k)=a2*Sn/dy
+    aS(i,j,k)=a2*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a3*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !cubo1
+    if((m_c(i,j,k).eq.1).and.(m_c(i-1,j,k).eq.0).and.(m_c(i,j+1,k).eq.0).and.(m_c(i,j,k-1).eq.0))then
+    aE(i,j,k)=a2*Se/dx
+    aW(i,j,k)=a3*Sw/dx
+    aN(i,j,k)=a3*Sn/dy
+    aS(i,j,k)=a2*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a3*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !cubo2
+    if((m_c(i,j,k).eq.1).and.(m_c(i+1,j,k).eq.0).and.(m_c(i,j+1,k).eq.0).and.(m_c(i,j,k-1).eq.0))then
+    aE(i,j,k)=a3*Se/dx
+    aW(i,j,k)=a2*Sw/dx
+    aN(i,j,k)=a3*Sn/dy
+    aS(i,j,k)=a2*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a3*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !cubo3
+    if((m_c(i,j,k).eq.1).and.(m_c(i+1,j,k).eq.0).and.(m_c(i,j-1,k).eq.0).and.(m_c(i,j,k-1).eq.0))then
+    aE(i,j,k)=a3*Se/dx
+    aW(i,j,k)=a2*Sw/dx
+    aN(i,j,k)=a2*Sn/dy
+    aS(i,j,k)=a3*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a3*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    !cubo4
+    if((m_c(i,j,k).eq.1).and.(m_c(i-1,j,k).eq.0).and.(m_c(i,j-1,k).eq.0).and.(m_c(i,j,k-1).eq.0))then
+    aE(i,j,k)=a2*Se/dx
+    aW(i,j,k)=a3*Sw/dx
+    aN(i,j,k)=a2*Sn/dy
+    aS(i,j,k)=a3*Ss/dy
+    aU(i,j,k)=a2*Su/dz
+    aB(i,j,k)=a3*Sb/dz
+    aP(i,j,k)=aE(i,j,k)+aW(i,j,k)+aN(i,j,k)+aS(i,j,k)+aU(i,j,k)+aB(i,j,k)+dv/dt
+    Sp(i,j,k)=T(i,j,k)*dv/dt
+    endif
+    enddo
+    enddo
+    enddo
+!correccion de fronteras
+!tipo robin
+    !norte
+    c1=(2.0*kk-hac*dy)/(2.0*kk+hac*dy)
+    c2=(2.0*hac*Tac*dy)/(2.0*kk+hac*dy)
+    aP(1:nx,ny,1:nz)=aP(1:nx,ny,1:nz)-aN(1:nx,ny,1:nz)*c1
+    Sp(1:nx,ny,1:nz)=Sp(1:nx,ny,1:nz)+aN(1:nx,ny,1:nz)*c2
+    aN(1:nx,ny,1:nz)=0.0
+    !sur
+    c3=(2.0*kk-hac*dy)/(2.0*kk+hac*dy)
+    c4=(2.0*hac*Tac*dy)/(2.0*kk+hac*dy)
+    aP(1:nx,1,1:nz)=aP(1:nx,1,1:nz)-aS(1:nx,1,1:nz)*c3
+    Sp(1:nx,1,1:nz)=Sp(1:nx,1,1:nz)+aS(1:nx,1,1:nz)*c4
+    aS(1:nx,1,1:nz)=0.0
+    !este
+    c5=(2.0*kk-hac*dx)/(2.0*kk+hac*dx)
+    c6=(2.0*hac*Tac*dx)/(hac*dx+2.0*kk)
+    aP(nx,1:ny,1:nz)=aP(nx,1:ny,1:nz)-aE(nx,1:ny,1:nz)*c5
+    Sp(nx,1:ny,1:nz)=Sp(nx,1:ny,1:nz)+aE(nx,1:ny,1:nz)*c6
+    aE(nx,1:ny,1:nz)=0.0
+    !oeste
+    c7=(2.0*kk-hac*dx)/(2.0*kk+hac*dx)
+    c8=(2.0*hac*Tac*dx)/(2.0*kk+hac*dx)
+    aP(1,1:ny,1:nz)=aP(1,1:ny,1:nz)-aW(1,1:ny,1:nz)*c7
+    Sp(1,1:ny,1:nz)=Sp(1,1:ny,1:nz)+aW(1,1:ny,1:nz)*c8
+    aW(1,1:ny,1:nz)=0.0
+    !abajo
+    c9=(2.0*kk-hac*dz)/(2.0*kk+hac*dz)
+    c10=(2.0*hac*Tac*dz)/(2.0*kk+hac*dz)
+    aP(1:nx,1:ny,1)=aP(1:nx,1:ny,1)-aB(1:nx,1:ny,1)*c9
+    Sp(1:nx,1:ny,1)=Sp(1:nx,1:ny,1)+aB(1:nx,1:ny,1)*c10
+    aB(1:nx,1:ny,1)=0.0
+    !arriba
+    c21=(2.0*kk-hac*dz)/(2.0*kk+hac*dz)
+    c22=(2.0*hac*Tac*dz)/(2.0*kk+hac*dz)
+    aP(1:nx,1:ny,1)=aP(1:nx,1:ny,1)-aU(1:nx,1:ny,1)*c21
+    Sp(1:nx,1:ny,1)=Sp(1:nx,1:ny,1)+aU(1:nx,1:ny,1)*c22
+    aU(1:nx,1:ny,1)=0.0	
+
+!solucion de sistema de ecuaciones lineales
+    call Gauss_TDMA3D(T,nx,ny,nz,aP,aE,aW,aN,aS,aU,aB,sP,nx,ny,nz,max_iter,tolerance,residual)
+!impresion de resultados en la pantalla
+    if ((it.eq.1).or.(mod(it,05).eq.0))then
+    write(*,*)it,T(45,45,48),T(45,45,39),T(45,45,24)!axial
+    endif
+!termina ciclo tempral
+    enddo
+end program main
+!---------------------------------------------------------------------
+SUBROUTINE MESH_1D(nx,x0,xl,x,xc)
+IMPLICIT NONE
+INTEGER nx,i
+REAL*8 dx,x0,xl
+REAL*8 x(0:nx),xc(0:nx+1) !para guardar las caras de los vol de ctrl y los centros
+
+dx=1.0/FLOAT(nx)
+
+DO i=0,nx
+  x(i)=x0+FLOAT(i)*(xl-x0)*dx !para saber donde se ubican los vol dew ctrol
+END DO
+
+xc(0)=x(0); xc(nx+1)=x(nx)
+
+DO i=1,nx
+  xc(i)=0.5*(x(i)+x(i-1)) !para saber donde se ubican las caras de los vol de ctrol
+END DO
+
+END SUBROUTINE
+!********************************************************************
+real*8 function calcResidual(phi,ei,ej,ek,aP,aE,aW,aN,aS,aU,aB,sP,nx,ny,nz)
+implicit none
+integer bi,ei,bj,ej,bk,ek,i,j,k,nx,ny,nz
+real*8 phi(0:ei+1,0:ej+1,0:ek+1),aP(nx,ny,nz),aE(nx,ny,nz),aW(nx,ny,nz),aN(nx,ny,nz), &
+aS(nx,ny,nz),aU(nx,ny,nz),aB(nx,ny,nz),sP(nx,ny,nz)
+real*8 acum(ei,ej,ek),residual,NINV
+bi=1; bj=1; bk=1
+acum=0
+NINV = 1.0 / dfloat(ei*ej*ek)
+do i=bi,ei
+do j=bj,ej
+do k=bk,ek
+
+acum(i,j,k) = (aE(i,j,k) * phi(i+1,j,k) +aW(i,j,k) * phi(i-1,j,k) +&
+    aN(i,j,k) * phi(i,j+1,k) +aS(i,j,k) * phi(i,j-1,k)+aU(i,j,k) * phi(i,j,k+1) &
+    +aB(i,j,k) * phi(i,j,k-1)+sP(i,j,k))-aP(i,j,k) * phi(i,j,k)
+
+end do
+end do
+end do
+residual = sqrt( NINV * sum(acum * acum) )
+calcResidual=residual
+end function
+!************************************************************
+!************************************************************
+subroutine Gauss_TDMA3D(phi,ei,ej,ek,aP,aE,aW,aN,aS,aU,aB,sP,nx,ny,nz,max_iter,tolerance,residual)
+
+implicit none
+
+integer bi,ei,bj,ej,bk,ek,i,j,k,nx,ny,nz,count_iter,max_iter
+real*8 phi(0:ei+1,0:ej+1,0:ek+1),aP(nx,ny,nz),aE(nx,ny,nz),aW(nx,ny,nz),aN(nx,ny,nz), &
+aS(nx,ny,nz),aU(nx,ny,nz),aB(nx,ny,nz),sP(nx,ny,nz)
+real*8 residual,tolerance
+
+    interface
+    real*8 function calcResidual(phi,ei,ej,ek,aP,aE,aW,aN,aS,aU,aB,sP,nx,ny,nz)
+    implicit none
+    integer ei,ej,ek,nx,ny,nz
+    real*8 phi(0:ei+1,0:ej+1,0:ek+1),aP(nx,ny,nz),aE(nx,ny,nz),aW(nx,ny,nz),aN(nx,ny,nz), &
+    aS(nx,ny,nz),aU(nx,ny,nz),aB(nx,ny,nz),sP(nx,ny,nz)
+    end function
+    end interface
+
+count_iter=0; residual=1.0
+do while((count_iter <= max_iter).and.(residual > tolerance))
+call lineX_3D(phi,ei,ej,ek,aP,aE,aW,aN,aS,aU,aB,sP,nx,ny,nz)
+call lineY_3D(phi,ei,ej,ek,aP,aE,aW,aN,aS,aU,aB,sP,nx,ny,nz)
+call lineZ_3D(phi,ei,ej,ek,aP,aE,aW,aN,aS,aU,aB,sP,nx,ny,nz)
+residual = calcResidual(phi,ei,ej,ek,aP,aE,aW,aN,aS,aU,aB,sP,nx,ny,nz)
+count_iter=count_iter+1
+end do
+
+end subroutine
+!************************************************************
+!************************************************************
+subroutine lineX_3D(phi,ei,ej,ek,aP,aE,aW,aN,aS,aU,aB,sP,nx,ny,nz)
+
+implicit none
+integer bi,ei,bj,ej,bk,ek,i,j,k,nx,ny,nz
+real*8 phi(0:ei+1,0:ej+1,0:ek+1),aP(nx,ny,nz),aE(nx,ny,nz),aW(nx,ny,nz),aN(nx,ny,nz), &
+aS(nx,ny,nz),aU(nx,ny,nz),aB(nx,ny,nz),sP(nx,ny,nz)
+real*8 a(ei),b(ei),c(ei),d(ei)
+bi=1; bj=1; bk=1
+
+do j=bj,ej
+do k=bk,ek
+do i=bi,ei
+    a(i)=-aW(i,j,k)
+    b(i)=aP(i,j,k)
+    c(i)=-aE(i,j,k)
+    d(i)=sP(i,j,k) + aN(i,j,k) * phi(i,j+1,k) + aS(i,j,k) * phi(i,j-1,k)+aU(i,j,k) * phi(i,j,k+1) + aB(i,j,k) * phi(i,j,k-1)
+end do
+call TDMA(phi(1:ei,j,k), a, b, c ,d ,ei)
+end do
+enddo
+
+end subroutine
+!************************************************************
+!************************************************************
+subroutine lineY_3D(phi,ei,ej,ek,aP,aE,aW,aN,aS,aU,aB,sP,nx,ny,nz)
+
+implicit none
+integer bi,ei,bj,ej,bk,ek,i,j,k,nx,ny,nz
+real*8 phi(0:ei+1,0:ej+1,0:ek+1),aP(nx,ny,nz),aE(nx,ny,nz),aW(nx,ny,nz),aN(nx,ny,nz), &
+aS(nx,ny,nz),aU(nx,ny,nz),aB(nx,ny,nz),sP(nx,ny,nz)
+real*8 a(ej),b(ej),c(ej),d(ej)
+bi=1; bj=1; bk=1
+
+do i=bi,ei
+do k=bk,ek
+do j=bj,ej
+    a(j)=-aS(i,j,k)
+    b(j)=aP(i,j,k)
+    c(j)=-aN(i,j,k)
+    d(j)=sP(i,j,k) + aE(i,j,k) * phi(i+1,j,k) + aW(i,j,k) * phi(i-1,j,k)+aU(i,j,k) * phi(i,j,k+1) + aB(i,j,k) * phi(i,j,k-1)
+end do
+call TDMA(phi(i,1:ej,k), a, b, c ,d ,ej)
+end do
+end do
+
+end subroutine
+!************************************************************
+!************************************************************
+subroutine lineZ_3D(phi,ei,ej,ek,aP,aE,aW,aN,aS,aU,aB,sP,nx,ny,nz)
+
+implicit none
+integer bi,ei,bj,ej,bk,ek,i,j,k,nx,ny,nz
+real*8 phi(0:ei+1,0:ej+1,0:ek+1),aP(nx,ny,nz),aE(nx,ny,nz),aW(nx,ny,nz),aN(nx,ny,nz), &
+aS(nx,ny,nz),aU(nx,ny,nz),aB(nx,ny,nz),sP(nx,ny,nz)
+real*8 a(ek),b(ek),c(ek),d(ek)
+bi=1; bj=1; bk=1
+
+do i=bi,ei
+do j=bj,ej
+do k=bk,ek
+    a(k)=-aB(i,j,k)
+    b(k)=aP(i,j,k)
+    c(k)=-aU(i,j,k)
+    d(k)=sP(i,j,k) + aE(i,j,k) * phi(i+1,j,k) + aW(i,j,k) * phi(i-1,j,k)+aN(i,j,k) * phi(i,j+1,k) + aS(i,j,k) * phi(i,j-1,k)
+end do
+call TDMA(phi(i,j,1:ek), a, b, c ,d ,ek)
+end do
+enddo
+
+end subroutine
+!************************************************************
+!************************************************************
+subroutine TDMA(x,a,b,c,d,n)
+
+implicit none
+ integer n,k
+ real*8 a(n),b(n),c(n),d(n),x(n),m
+
+ do k=2,N
+  m=a(k)/b(k-1)
+  b(k)=b(k)-m*c(k-1)
+  d(k)=d(k)-m*d(k-1)
+ end do
+
+ x(n)=d(n)/b(n)
+
+ do k=n-1,1,-1
+  x(k)=(d(k)-c(k)*x(k+1))/b(k)
+ end do
+
+end subroutine
+!--!::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::.
+Subroutine WriteScalarField3Dx(Name,kx,T,xc,yc,zc,nx,ny,nz)
+implicit none
+integer i,j,k,nx,ny,nz,kx
+real*8 T(0:nx+1,0:ny+1,0:nz+1),xc(0:nx+1),yc(0:ny+1),zc(0:nz+1)
+real*8 a,b,c
+character*(*)Name
+character*50 txt,Filename
+write(txt,'(i6)')kx
+txt=ADJUSTL(txt)
+Filename=name//txt(1:len_trim(txt))//".csv"
+
+open(10,file=Filename(1:len_trim(Filename)))
+    do j=0,ny+1
+    do k=0,nz+1
+    a=xc(45)
+    b=yc(j)
+    c=zc(k)
+    write(10,'(4f20.10)')b,c,T(45,j,k)
+    end do
+    end do
+close(10)
+End Subroutine
+!::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::.
+Subroutine WriteScalarField3Dz(Name,kx,T,xc,yc,zc,nx,ny,nz)
+implicit none
+integer i,j,k,nx,ny,nz,kx
+real*8 T(0:nx+1,0:ny+1,0:nz+1),xc(0:nx+1),yc(0:ny+1),zc(0:nz+1)
+real*8 a,b,c
+character*(*)Name
+character*50 txt,Filename
+write(txt,'(i6)')kx
+txt=ADJUSTL(txt)
+Filename=name//txt(1:len_trim(txt))//".csv"
+
+open(10,file=Filename(1:len_trim(Filename)))
+    do i=0,nx+1
+    do j=0,ny+1
+    a=xc(i)
+    b=yc(j)
+    c=zc(66)
+    write(10,'(4f20.10)')a,b,T(i,j,66)
+    end do
+    end do
+close(10)
+End Subroutine
+
+
+
