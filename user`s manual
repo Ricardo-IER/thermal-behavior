@@ -1,5 +1,5 @@
-  El codigo "Thermal_behavior" esta presentado de la siguiente manera. En la primera parte se encuentran declaradas las varaibles,
-  la segunda parte se asignan su valor, pudiendo modificar las propiedades termo-fisicas del fluido y de la formacion, las temperaturas
-  iniciales de la formacion y del fluido, las dimensiones de la geometria y el tiempo de duracion de cada proceso. Posteriormente se 
-  realizan los calculos para la obtencion de la matriz y al final la solucion de dicha matriz. Se tiene la opcion de imprimir en la pantalla
-  el valor de temperatura puntuales por cada nodo de la geometria.
+The "Thermal_behavior" code consists on four parts: The first part comprises variable declaration; the second part consists of
+assigning values to all variables, according to the fluid and the formation thermo-physical properties, initial temperatures, 
+domain size and simulation time.  The third part performs the calculations for obtaining the systems of equations obtained by 
+discretizing the partial differential equations as well as its solution. Lastly, an option is given to present on screen the point 
+temperature values of all nodes in the domain
