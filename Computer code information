@@ -1,17 +1,15 @@
 The program "Thermal_behavior" was written in Fortran90 programming language. The program estimates the temperature profiles of 
-the rock formation 
+the rock formation during the processes of disturbance and thermal recovery, occurring during the geothermal well drilling process. 
+The code is available for download. 
 
-El programa "Thermal_behavior" fue escrito en el lenguaje de programacion Fortran90, para obtener perfiles de temperatura de la 
-formacion durante los procesos de afectacion y recuperacion termica que se dan durante la perforacion de pozos geotermicos. El 
-codigo esta disponible para su descarga gratuita. En el link se encuentra el archivo "codigo" que presenta el codigo completo, 
-el archivo "user`s manual" que explica como utilizar el codigo, y el archivo "computer code information" donde se muestra la 
-informacion del codigo.
+In the link, there are three files: the file "code", presenting the uncompiled source code; the "user's manual",
+that explains how to use the code; and the file "Computer code information", that presents general information
 
 Name of code. Thermal_behavior
 Developer & contact adress. Ricardo Molina Rodea, Priv Xochicalco S/N Temixco Morelos. C.P.: 62580 Mexico
 Telephone number. 55 61863663
 e-mail. rmr@ier.unam.mx
 Year first available. 2019 
-Hardware & Software required. cualquier compilador compatible para Fortran90 
+Hardware & Software required. Any compiler compatible with Fortran. A personal computer is enough. 
 Program language. Fortran90
 Program size. 
