@@ -4,7 +4,8 @@
   "codigo" que presenta el codigo completo, el archivo " " que explica como utilizar el codigo, y el archivo " " donde se muestra 
   la informacion del codigo.
   
- 
+  El codigo "Thermal_behavior" esta presentado de la siguiente manera. En la primera parte se encuentran declaradas las varaibles,
+  la segunda parte se asignan su valor, pudiendo modificar las dimensiones de la geometria,  
 
 Name of code. Thermal_behavior
 Developer. 
