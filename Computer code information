@@ -1,3 +1,6 @@
+The program "Thermal_behavior" was written in Fortran90 programming language. The program estimates the temperature profiles of 
+the rock formation 
+
 El programa "Thermal_behavior" fue escrito en el lenguaje de programacion Fortran90, para obtener perfiles de temperatura de la 
 formacion durante los procesos de afectacion y recuperacion termica que se dan durante la perforacion de pozos geotermicos. El 
 codigo esta disponible para su descarga gratuita. En el link se encuentra el archivo "codigo" que presenta el codigo completo, 
