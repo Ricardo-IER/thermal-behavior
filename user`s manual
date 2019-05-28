@@ -1,1 +1,5 @@
-a
+  El codigo "Thermal_behavior" esta presentado de la siguiente manera. En la primera parte se encuentran declaradas las varaibles,
+  la segunda parte se asignan su valor, pudiendo modificar las propiedades termo-fisicas del fluido y de la formacion, las temperaturas
+  iniciales de la formacion y del fluido, las dimensiones de la geometria y el tiempo de duracion de cada proceso. Posteriormente se 
+  realizan los calculos para la obtencion de la matriz y al final la solucion de dicha matriz. Se tiene la opcion de imprimir en la pantalla
+  el valor de temperatura puntuales por cada nodo de la geometria.
